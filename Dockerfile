@@ -3,16 +3,17 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
-
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Set up virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Final runtime image
 FROM python:3.13-slim AS runner
@@ -22,7 +23,7 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    PATH=/install/bin:$PATH
+    PATH="/opt/venv/bin:$PATH"
 
 # Install runtime system dependencies and curl for health check
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -30,8 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed dependencies and application code
-COPY --from=builder /install /install
+# Copy virtual environment and application code
+COPY --from=builder /opt/venv /opt/venv
 COPY . /app
 
 # Create a non-privileged user and group for security
@@ -49,3 +50,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
