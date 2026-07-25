@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import Date, DateTime, JSON, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, Date, DateTime, JSON, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -21,7 +21,8 @@ class MarketData(Base):
     high: Mapped[float | None] = mapped_column(Numeric(precision=18, scale=4), nullable=True)
     low: Mapped[float | None] = mapped_column(Numeric(precision=18, scale=4), nullable=True)
     close: Mapped[float] = mapped_column(Numeric(precision=18, scale=4), nullable=False)
-    volume: Mapped[int | None] = mapped_column(nullable=True)
+    volume: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

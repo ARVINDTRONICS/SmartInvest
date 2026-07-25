@@ -23,9 +23,12 @@ async def lifespan(app: FastAPI):
 
     # Initialize Database Tables
     try:
+        from sqlalchemy import text
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("Database tables initialized successfully.")
+            # Safe schema migration: upgrade volume column to BIGINT if it's currently INTEGER
+            await conn.execute(text("ALTER TABLE market_data ALTER COLUMN volume TYPE BIGINT;"))
+        logger.info("Database tables initialized successfully and volume column upgraded to BIGINT.")
     except Exception as e:
         logger.error("Failed to initialize database tables.", extra={"error": str(e)})
     
