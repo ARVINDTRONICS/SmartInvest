@@ -21,8 +21,10 @@ class YFinanceBaseCollector(BaseCollector):
 
     async def _fetch_data(self, yf_symbol: str, start_date: date, end_date: date) -> pd.DataFrame:
         """
-        Invokes yfinance to retrieve history for the symbol.
+        Invokes yfinance to retrieve history for the symbol. Runs in a thread pool to avoid blocking the loop.
         """
+        import asyncio
+
         def fetch() -> pd.DataFrame:
             ticker = yf.Ticker(yf_symbol)
             # yfinance end date is exclusive, so we add 1 day
@@ -34,7 +36,11 @@ class YFinanceBaseCollector(BaseCollector):
             )
             return df
         
-        return await retry_async(fetch)
+        async def fetch_async() -> pd.DataFrame:
+            return await asyncio.to_thread(fetch)
+        
+        return await retry_async(fetch_async)
+
 
     async def _save_to_db(self, db: AsyncSession, db_symbol: str, df: pd.DataFrame) -> None:
         """
