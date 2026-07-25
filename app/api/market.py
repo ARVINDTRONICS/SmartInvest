@@ -131,6 +131,7 @@ async def run_bootstrap_task(days: int) -> None:
     from collectors.us_market.index_collector import USIndexCollector
     from collectors.commodities.commodity_collector import CommodityCollector
     from collectors.forex.forex_collector import ForexCollector
+    from collectors.news.news_collector import NewsCollector
     from indicators.engine import IndicatorsEngine
     
     start_date = date.today() - timedelta(days=days)
@@ -140,12 +141,13 @@ async def run_bootstrap_task(days: int) -> None:
     
     async with async_session_factory() as db:
         try:
-            # 1. Run all yfinance and FII/DII collectors
+            # 1. Run all yfinance, FII/DII, and news collectors
             await IndiaIndexCollector().collect_historical(db, start_date, end_date)
             await FIIDIICollector().collect_historical(db, start_date, end_date)
             await USIndexCollector().collect_historical(db, start_date, end_date)
             await CommodityCollector().collect_historical(db, start_date, end_date)
             await ForexCollector().collect_historical(db, start_date, end_date)
+            await NewsCollector().collect_historical(db, start_date, end_date)
             
             logger.info("Historical data seeding finished. Calculating technical indicators...")
             
