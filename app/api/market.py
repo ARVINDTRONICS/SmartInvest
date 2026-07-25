@@ -1,7 +1,7 @@
 import json
 import logging
-from datetime import date
-from fastapi import APIRouter, Depends
+from datetime import date, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,3 +118,56 @@ async def get_market_today(
         logger.warning(f"Updating Redis cache failed: {e}")
 
     return response_data
+
+
+@router.post("/market/collect")
+async def collect_market_data(
+    days: int = Query(365, ge=5, description="Number of days of history to bootstrap"),
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """
+    Bootstraps historical market data and technical indicators for all symbols.
+    Useful for empty databases on initial deployment.
+    """
+    logger.info(f"Triggering historical market data bootstrap for last {days} days...")
+    
+    from collectors.india_market.index_collector import IndiaIndexCollector
+    from collectors.india_market.fii_dii_collector import FIIDIICollector
+    from collectors.us_market.index_collector import USIndexCollector
+    from collectors.commodities.commodity_collector import CommodityCollector
+    from collectors.forex.forex_collector import ForexCollector
+    from indicators.engine import IndicatorsEngine
+    
+    start_date = date.today() - timedelta(days=days)
+    end_date = date.today()
+    
+    # Run all yfinance and FII/DII collectors
+    try:
+        await IndiaIndexCollector().collect_historical(db, start_date, end_date)
+        await FIIDIICollector().collect_historical(db, start_date, end_date)
+        await USIndexCollector().collect_historical(db, start_date, end_date)
+        await CommodityCollector().collect_historical(db, start_date, end_date)
+        await ForexCollector().collect_historical(db, start_date, end_date)
+    except Exception as e:
+        logger.error(f"Failed to bootstrap historical collectors: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to collect historical pricing: {e}")
+        
+    # Recalculate all technical indicators
+    try:
+        stmt_syms = select(MarketData.symbol).distinct()
+        res_syms = await db.execute(stmt_syms)
+        distinct_symbols = res_syms.scalars().all()
+        
+        indicators_engine = IndicatorsEngine()
+        for sym in distinct_symbols:
+            if sym not in ["INDIAVIX", "USVIX"]:
+                await indicators_engine.calculate_for_symbol(db, sym, lookback_days=days)
+    except Exception as e:
+        logger.error(f"Failed to calculate indicators during bootstrap: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to calculate technical indicators: {e}")
+        
+    return {
+        "status": "success", 
+        "message": f"Successfully bootstrapped market data and technical indicators for last {days} days."
+    }
+
