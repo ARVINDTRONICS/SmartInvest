@@ -39,11 +39,23 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_payload)
 
 
+class HealthCheckFilter(logging.Filter):
+    """
+    Suppresses standard uvicorn access logs for the health check endpoint to prevent log pollution.
+    """
+    def filter(self, record: logging.LogRecord) -> bool:
+        return "/health" not in record.getMessage()
+
+
 def setup_logging(log_level: str = "INFO") -> None:
     """
     Configure the root logger with the JSONFormatter and attach to stdout.
     """
     root_logger = logging.getLogger()
+    
+    # Filter out health check logs
+    root_logger.addFilter(HealthCheckFilter())
+
     
     # Remove existing handlers to avoid duplicates
     for handler in list(root_logger.handlers):
