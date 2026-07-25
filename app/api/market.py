@@ -183,3 +183,41 @@ async def collect_market_data(
     }
 
 
+async def run_news_bootstrap_task(days: int) -> None:
+    """
+    Background worker function that performs historical news scraping.
+    """
+    from app.core.database import async_session_factory
+    from collectors.news.news_collector import NewsCollector
+    
+    start_date = date.today() - timedelta(days=days)
+    end_date = date.today()
+    
+    logger.info(f"Background news bootstrap task started: Seeding news for past {days} days.")
+    
+    async with async_session_factory() as db:
+        try:
+            await NewsCollector().collect_historical(db, start_date, end_date)
+            logger.info("Background news bootstrap task finished successfully.")
+        except Exception as e:
+            logger.error(f"Error in background news bootstrap task: {e}", exc_info=True)
+
+
+@router.post("/news/collect", status_code=202)
+async def collect_news_data(
+    background_tasks: BackgroundTasks,
+    days: int = Query(30, ge=1, description="Number of days of news history to bootstrap")
+) -> dict:
+    """
+    Asynchronously bootstraps historical news data from RSS feeds.
+    Returns immediately with HTTP 202 Accepted.
+    """
+    logger.info(f"Accepted news bootstrap request for past {days} days. Queueing background task...")
+    background_tasks.add_task(run_news_bootstrap_task, days)
+    return {
+        "status": "accepted",
+        "message": f"News bootstrapping for the last {days} days has been initiated in the background."
+    }
+
+
+
