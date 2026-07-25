@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -120,17 +120,12 @@ async def get_market_today(
     return response_data
 
 
-@router.post("/market/collect")
-async def collect_market_data(
-    days: int = Query(365, ge=5, description="Number of days of history to bootstrap"),
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def run_bootstrap_task(days: int) -> None:
     """
-    Bootstraps historical market data and technical indicators for all symbols.
-    Useful for empty databases on initial deployment.
+    Background worker function that performs historical data scraping and computes indicators.
+    Uses a clean database session from the session factory.
     """
-    logger.info(f"Triggering historical market data bootstrap for last {days} days...")
-    
+    from app.core.database import async_session_factory
     from collectors.india_market.index_collector import IndiaIndexCollector
     from collectors.india_market.fii_dii_collector import FIIDIICollector
     from collectors.us_market.index_collector import USIndexCollector
@@ -141,33 +136,48 @@ async def collect_market_data(
     start_date = date.today() - timedelta(days=days)
     end_date = date.today()
     
-    # Run all yfinance and FII/DII collectors
-    try:
-        await IndiaIndexCollector().collect_historical(db, start_date, end_date)
-        await FIIDIICollector().collect_historical(db, start_date, end_date)
-        await USIndexCollector().collect_historical(db, start_date, end_date)
-        await CommodityCollector().collect_historical(db, start_date, end_date)
-        await ForexCollector().collect_historical(db, start_date, end_date)
-    except Exception as e:
-        logger.error(f"Failed to bootstrap historical collectors: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to collect historical pricing: {e}")
-        
-    # Recalculate all technical indicators
-    try:
-        stmt_syms = select(MarketData.symbol).distinct()
-        res_syms = await db.execute(stmt_syms)
-        distinct_symbols = res_syms.scalars().all()
-        
-        indicators_engine = IndicatorsEngine()
-        for sym in distinct_symbols:
-            if sym not in ["INDIAVIX", "USVIX"]:
-                await indicators_engine.calculate_for_symbol(db, sym, lookback_days=days)
-    except Exception as e:
-        logger.error(f"Failed to calculate indicators during bootstrap: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to calculate technical indicators: {e}")
-        
+    logger.info(f"Background bootstrap task started: Seeding database for past {days} days.")
+    
+    async with async_session_factory() as db:
+        try:
+            # 1. Run all yfinance and FII/DII collectors
+            await IndiaIndexCollector().collect_historical(db, start_date, end_date)
+            await FIIDIICollector().collect_historical(db, start_date, end_date)
+            await USIndexCollector().collect_historical(db, start_date, end_date)
+            await CommodityCollector().collect_historical(db, start_date, end_date)
+            await ForexCollector().collect_historical(db, start_date, end_date)
+            
+            logger.info("Historical data seeding finished. Calculating technical indicators...")
+            
+            # 2. Recalculate indicators
+            stmt_syms = select(MarketData.symbol).distinct()
+            res_syms = await db.execute(stmt_syms)
+            distinct_symbols = res_syms.scalars().all()
+            
+            indicators_engine = IndicatorsEngine()
+            for sym in distinct_symbols:
+                if sym not in ["INDIAVIX", "USVIX"]:
+                    await indicators_engine.calculate_for_symbol(db, sym, lookback_days=days)
+                    
+            logger.info("Background bootstrap task finished successfully. Database is now warmed up.")
+        except Exception as e:
+            logger.error(f"Error in background bootstrap task: {e}", exc_info=True)
+
+
+@router.post("/market/collect", status_code=202)
+async def collect_market_data(
+    background_tasks: BackgroundTasks,
+    days: int = Query(30, ge=5, description="Number of days of history to bootstrap")
+) -> dict:
+    """
+    Asynchronously bootstraps historical market data and technical indicators.
+    Returns immediately with HTTP 202 Accepted to prevent reverse proxy/gateway timeouts.
+    """
+    logger.info(f"Accepted bootstrap request for past {days} days. Queueing background task...")
+    background_tasks.add_task(run_bootstrap_task, days)
     return {
-        "status": "success", 
-        "message": f"Successfully bootstrapped market data and technical indicators for last {days} days."
+        "status": "accepted",
+        "message": f"Database bootstrapping for the last {days} days has been initiated in the background."
     }
+
 
