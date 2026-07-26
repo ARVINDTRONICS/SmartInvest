@@ -113,7 +113,25 @@ async def run_market_collection_job() -> None:
                         # 4. Send Telegram message
                         telegram_msg = final_state.get("telegram_text")
                         if telegram_msg:
-                            await send_telegram_message(telegram_msg)
+                            from app.config.config import settings
+                            alert_symbols = [
+                                s.strip().upper() 
+                                for s in (settings.TELEGRAM_ALERT_SYMBOLS or "").split(",") 
+                                if s.strip()
+                            ]
+                            
+                            # Allow matches (e.g. "NIFTY" in "NIFTY50" or exact match "DOW")
+                            should_send = False
+                            for allowed in alert_symbols:
+                                if allowed in sym.upper() or sym.upper() in allowed:
+                                    should_send = True
+                                    break
+                                    
+                            if should_send:
+                                await send_telegram_message(telegram_msg)
+                            else:
+                                logger.info(f"Skipping Telegram alert for {sym} as it is not allowed in TELEGRAM_ALERT_SYMBOLS.")
+
 
                     except Exception as e:
                         logger.error(f"Decision/AI/Telegram pipeline failed for {sym}: {e}", exc_info=True)
@@ -128,7 +146,7 @@ def start_scheduler() -> None:
     Registers the daily job and starts the scheduler on the running event loop.
     """
     # Runs at 18:30 IST / 13:00 UTC daily
-    trigger = CronTrigger(hour=5, minute=40, timezone="Asia/Kolkata")
+    trigger = CronTrigger(hour=4, minute=42, timezone="Asia/Dubai")
     
     scheduler.add_job(
         run_market_collection_job,

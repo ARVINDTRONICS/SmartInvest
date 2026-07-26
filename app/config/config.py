@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     # Telegram
     TELEGRAM_BOT_TOKEN: str | None = None
     TELEGRAM_CHAT_ID: str | None = None
+    TELEGRAM_ALERT_SYMBOLS: str = "NIFTY50,DOW"
+
 
 
 settings = Settings()
