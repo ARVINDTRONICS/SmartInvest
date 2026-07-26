@@ -36,8 +36,8 @@ COPY --from=builder /opt/venv /opt/venv
 COPY . /app
 
 # Create a non-privileged user and group for security
-RUN groupadd -r -g 10001 appgroup && \
-    useradd -r -u 10001 -g appgroup appuser && \
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup appuser && \
     chown -R appuser:appgroup /app
 
 # Switch to the non-root user

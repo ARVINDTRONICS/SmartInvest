@@ -1,0 +1,34 @@
+# Exclude Python virtual environment
+.venv/
+venv/
+ENV/
+env/
+
+# Exclude git repository data
+.git/
+.gitignore
+
+# Exclude cache folders
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Exclude IDE settings
+.vscode/
+.idea/
+.DS_Store
+
+# Exclude build artifacts and scratch scripts
+scratch/
+.agents/
+*.log
+README.md
+walkthrough.md
+task.md
+implementation_plan.md
+security_and_review.md
+deployment_and_testing_guide.md
