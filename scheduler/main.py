@@ -1,7 +1,9 @@
 import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from sqlalchemy import select
 from app.core.database import async_session_factory
+from database.models import MarketData
 from collectors.india_market.index_collector import IndiaIndexCollector
 from collectors.india_market.fii_dii_collector import FIIDIICollector
 from collectors.us_market.index_collector import USIndexCollector
@@ -126,7 +128,7 @@ def start_scheduler() -> None:
     Registers the daily job and starts the scheduler on the running event loop.
     """
     # Runs at 18:30 IST / 13:00 UTC daily
-    trigger = CronTrigger(hour=18, minute=30, timezone="Asia/Kolkata")
+    trigger = CronTrigger(hour=5, minute=40, timezone="Asia/Kolkata")
     
     scheduler.add_job(
         run_market_collection_job,
