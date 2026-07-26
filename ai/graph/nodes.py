@@ -126,7 +126,12 @@ async def explanation_agent_node(state: GraphState) -> dict:
         from langchain_openai import ChatOpenAI
         from langchain_core.messages import SystemMessage, HumanMessage
 
-        llm = ChatOpenAI(openai_api_key=api_key, model="gpt-4o-mini", temperature=0.3)
+        llm = ChatOpenAI(
+            openai_api_key=api_key,
+            openai_api_base=settings.OPENAI_API_BASE,
+            model=settings.LLM_MODEL_NAME,
+            temperature=0.3
+        )
         system_prompt = (
             "You are SmartInvest AI, an explanation model. Explain the decision made by the deterministic "
             "rule engine. Do not recommend or decide. Analyze why the rules decided what they did "

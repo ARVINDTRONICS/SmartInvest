@@ -20,8 +20,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # AI (OpenAI)
+    # AI (OpenAI / Gemini / Groq / OpenRouter)
     OPENAI_API_KEY: str | None = None
+    OPENAI_API_BASE: str | None = None
+    LLM_MODEL_NAME: str = "gpt-4o-mini"
+
 
     # Telegram
     TELEGRAM_BOT_TOKEN: str | None = None
