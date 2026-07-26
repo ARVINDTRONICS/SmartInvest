@@ -121,40 +121,82 @@ async def explanation_agent_node(state: GraphState) -> dict:
     api_key = settings.OPENAI_API_KEY
     if not api_key:
         explanation = fallback_explanation
-    # 2. Invoke ChatOpenAI LLM
+    # 2. Invoke LLM
     else:
-        from langchain_openai import ChatOpenAI
-        from langchain_core.messages import SystemMessage, HumanMessage
+        # Check if the target is Google Gemini API
+        api_base = settings.OPENAI_API_BASE or ""
+        if "generativelanguage.googleapis.com" in api_base:
+            import httpx
+            # Append API key to the raw Google REST endpoint url
+            url = f"{api_base}?key={api_key}"
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": (
+                                    f"You are SmartInvest AI, an explanation model. Explain the decision made by the deterministic "
+                                    f"rule engine. Do not recommend or decide. Analyze why the rules decided what they did "
+                                    f"based on the provided indicators, VIX, news context, and remaining window days.\n\n"
+                                    f"Symbol: {symbol}\n"
+                                    f"Decision: {rec['decision']} (Confidence: {rec['confidence']}%)\n"
+                                    f"Triggered Rules: {rec['triggered_rules']}\n"
+                                    f"Market Context:\n{state['summary_text']}"
+                                )
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.3
+                }
+            }
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    response = await client.post(url, json=payload)
+                    if response.status_code == 200:
+                        resp_json = response.json()
+                        explanation = resp_json["candidates"][0]["content"]["parts"][0]["text"]
+                    else:
+                        logger.error(f"Gemini API returned error code {response.status_code}: {response.text}")
+                        explanation = fallback_explanation
+            except Exception as e:
+                logger.error(f"Error calling Gemini API: {e}. Falling back to clean text summary.")
+                explanation = fallback_explanation
+        else:
+            # Fall back to standard OpenAI / Groq / OpenRouter LangChain client
+            from langchain_openai import ChatOpenAI
+            from langchain_core.messages import SystemMessage, HumanMessage
 
-        llm = ChatOpenAI(
-            openai_api_key=api_key,
-            openai_api_base=settings.OPENAI_API_BASE,
-            model=settings.LLM_MODEL_NAME,
-            temperature=0.3
-        )
-        system_prompt = (
-            "You are SmartInvest AI, an explanation model. Explain the decision made by the deterministic "
-            "rule engine. Do not recommend or decide. Analyze why the rules decided what they did "
-            "based on the provided indicators, VIX, news context, and remaining window days."
-        )
-        human_msg = (
-            f"Symbol: {symbol}\n"
-            f"Decision: {rec['decision']} (Confidence: {rec['confidence']}%)\n"
-            f"Triggered Rules: {rec['triggered_rules']}\n"
-            f"Market Context:\n{state['summary_text']}"
-        )
-        try:
-            response = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=human_msg)
-            ])
-            explanation = response.content
-        except Exception as e:
-            logger.error(
-                f"Error calling OpenAI API: {e}. "
-                f"Falling back to clean rule-engine text explanation."
+            llm = ChatOpenAI(
+                openai_api_key=api_key,
+                openai_api_base=settings.OPENAI_API_BASE,
+                model=settings.LLM_MODEL_NAME,
+                temperature=0.3
             )
-            explanation = fallback_explanation
+            system_prompt = (
+                "You are SmartInvest AI, an explanation model. Explain the decision made by the deterministic "
+                "rule engine. Do not recommend or decide. Analyze why the rules decided what they did "
+                "based on the provided indicators, VIX, news context, and remaining window days."
+            )
+            human_msg = (
+                f"Symbol: {symbol}\n"
+                f"Decision: {rec['decision']} (Confidence: {rec['confidence']}%)\n"
+                f"Triggered Rules: {rec['triggered_rules']}\n"
+                f"Market Context:\n{state['summary_text']}"
+            )
+            try:
+                response = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=human_msg)
+                ])
+                explanation = response.content
+            except Exception as e:
+                logger.error(
+                    f"Error calling OpenAI API: {e}. "
+                    f"Falling back to clean rule-engine text explanation."
+                )
+                explanation = fallback_explanation
 
     return {"ai_explanation": explanation}
 
