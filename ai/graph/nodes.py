@@ -112,13 +112,15 @@ async def explanation_agent_node(state: GraphState) -> dict:
     symbol = state["symbol"]
     rec = state["recommendation"]
     
+    fallback_explanation = (
+        f"Decided to {rec['decision']} today for {symbol}. Confidence: {rec['confidence']}%.\n"
+        f"Primary triggers: {', '.join(rec['triggered_rules'])}."
+    )
+
     # 1. Fallback default if OpenAI API Key is missing (e.g. testing)
     api_key = settings.OPENAI_API_KEY
     if not api_key:
-        explanation = (
-            f"Decided to {rec['decision']} today for {symbol}. Confidence: {rec['confidence']}%.\n"
-            f"Primary triggers: {', '.join(rec['triggered_rules'])}."
-        )
+        explanation = fallback_explanation
     # 2. Invoke ChatOpenAI LLM
     else:
         from langchain_openai import ChatOpenAI
@@ -143,8 +145,11 @@ async def explanation_agent_node(state: GraphState) -> dict:
             ])
             explanation = response.content
         except Exception as e:
-            logger.error(f"Error calling OpenAI API: {e}")
-            explanation = f"Error generating automated AI explanation: {e}"
+            logger.error(
+                f"Error calling OpenAI API: {e}. "
+                f"Falling back to clean rule-engine text explanation."
+            )
+            explanation = fallback_explanation
 
     return {"ai_explanation": explanation}
 
