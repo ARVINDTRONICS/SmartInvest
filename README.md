@@ -66,6 +66,10 @@ OPENAI_API_KEY=sk-proj-...   # Required for AI explanations
 # Telegram Bot Notifications
 TELEGRAM_BOT_TOKEN=1234567890:ABC... # From BotFather
 TELEGRAM_CHAT_ID=-100123456789       # Your Chat/Channel ID
+TELEGRAM_ALERT_SYMBOLS=NIFTY50,DOW   # Only send Telegram alerts for these symbols
+
+# API Security Settings
+API_KEY=my-super-secret-key          # Set to secure API endpoints (optional in dev, recommended in prod)
 ```
 
 ---
@@ -152,10 +156,13 @@ To secure endpoint communications with SSL/TLS, run `certbot` on your host machi
 #### Triggering Seeding manually
 ```bash
 # Seed 180 days of prices/indicators
-curl -X POST "http://localhost/market/collect?days=180"
+curl -X POST -H "Authorization: Bearer <your_key>" "http://localhost/market/collect?days=180"
 
 # Seed 30 days of financial news RSS feeds
-curl -X POST "http://localhost/news/collect?days=30"
+curl -X POST -H "Authorization: Bearer <your_key>" "http://localhost/news/collect?days=30"
+
+# Query decision engine
+curl -H "Authorization: Bearer <your_key>" "http://localhost/decision?symbol=NIFTY50&remaining_days=5"
 ```
 
 ---

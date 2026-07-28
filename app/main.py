@@ -1,11 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from app.config.config import settings
 from app.core.database import engine
 from app.core.logging import setup_logging
 from app.core.redis import close_redis, get_redis_client
+from app.core.auth import verify_api_key
 from app.api import health, market, decision
+
 from database.models import Base
 from scheduler.main import start_scheduler, shutdown_scheduler
 
@@ -67,6 +69,6 @@ app = FastAPI(
 
 # Include API routers
 app.include_router(health.router)
-app.include_router(market.router)
-app.include_router(decision.router)
+app.include_router(market.router, dependencies=[Depends(verify_api_key)])
+app.include_router(decision.router, dependencies=[Depends(verify_api_key)])
 

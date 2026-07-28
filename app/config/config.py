@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     TELEGRAM_CHAT_ID: str | None = None
     TELEGRAM_ALERT_SYMBOLS: str = "NIFTY50,DOW"
 
+    # API Security
+    API_KEY: str | None = None
+
+
 
 
 settings = Settings()

@@ -146,7 +146,7 @@ def start_scheduler() -> None:
     Registers the daily job and starts the scheduler on the running event loop.
     """
     # Runs at 18:30 IST / 13:00 UTC daily
-    trigger = CronTrigger(hour=4, minute=42, timezone="Asia/Dubai")
+    trigger = CronTrigger(hour=12, minute=56, timezone="Asia/Dubai")
     
     scheduler.add_job(
         run_market_collection_job,

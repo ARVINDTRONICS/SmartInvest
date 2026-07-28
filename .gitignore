@@ -57,6 +57,7 @@ redis_data/
 # Secrets and environment configurations
 .env
 .env.*
+!.env.example
 secrets.json
 
 # Logs and scratch scripts
